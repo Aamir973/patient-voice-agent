@@ -1,0 +1,121 @@
+{
+  "name": "Patient Intake Coordinator",
+  "firstMessage": "Hi, thanks for calling! I'm Ava, and I can help you register as a new patient or update your info. Is this your first time registering with us, or are you an existing patient?",
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "temperature": 0.4,
+    "systemPrompt": "__SEE vapi/system_prompt.md FOR THE FULL PROMPT — paste its ```-fenced block here in the Vapi dashboard or via the API 'messages' field__",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "lookup_patient_by_phone",
+          "description": "Check whether a patient already has a record for the given phone number. Call this as soon as you have the caller's phone number, before collecting the rest of their info.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "phone_number": {
+                "type": "string",
+                "description": "The caller's 10-digit US phone number, digits only or with normal formatting."
+              }
+            },
+            "required": ["phone_number"]
+          }
+        },
+        "server": {
+          "url": "https://YOUR_DEPLOYED_API_BASE_URL/vapi/tool-calls",
+          "credentialId": "REPLACE_WITH_YOUR_BEARER_TOKEN_CREDENTIAL_ID"
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "register_patient",
+          "description": "Create a new patient record. Only call this after reading the full record back to the caller and receiving explicit confirmation. If it returns VALIDATION_ERROR, re-ask only the field named in the error and try again.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "first_name": { "type": "string" },
+              "last_name": { "type": "string" },
+              "date_of_birth": { "type": "string", "description": "ISO format YYYY-MM-DD" },
+              "sex": { "type": "string", "enum": ["Male", "Female", "Other", "Decline to Answer"] },
+              "phone_number": { "type": "string" },
+              "email": { "type": "string" },
+              "address_line_1": { "type": "string" },
+              "address_line_2": { "type": "string" },
+              "city": { "type": "string" },
+              "state": { "type": "string", "description": "2-letter US state abbreviation" },
+              "zip_code": { "type": "string" },
+              "insurance_provider": { "type": "string" },
+              "insurance_member_id": { "type": "string" },
+              "preferred_language": { "type": "string" },
+              "emergency_contact_name": { "type": "string" },
+              "emergency_contact_phone": { "type": "string" }
+            },
+            "required": [
+              "first_name", "last_name", "date_of_birth", "sex",
+              "phone_number", "address_line_1", "city", "state", "zip_code"
+            ]
+          }
+        },
+        "server": {
+          "url": "https://YOUR_DEPLOYED_API_BASE_URL/vapi/tool-calls",
+          "credentialId": "REPLACE_WITH_YOUR_BEARER_TOKEN_CREDENTIAL_ID"
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "update_patient",
+          "description": "Update an existing patient record found via lookup_patient_by_phone. Only include the fields the caller actually wants to change.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "patient_id": { "type": "string", "description": "The patient_id returned by lookup_patient_by_phone" },
+              "first_name": { "type": "string" },
+              "last_name": { "type": "string" },
+              "date_of_birth": { "type": "string" },
+              "sex": { "type": "string", "enum": ["Male", "Female", "Other", "Decline to Answer"] },
+              "phone_number": { "type": "string" },
+              "email": { "type": "string" },
+              "address_line_1": { "type": "string" },
+              "address_line_2": { "type": "string" },
+              "city": { "type": "string" },
+              "state": { "type": "string" },
+              "zip_code": { "type": "string" },
+              "insurance_provider": { "type": "string" },
+              "insurance_member_id": { "type": "string" },
+              "preferred_language": { "type": "string" },
+              "emergency_contact_name": { "type": "string" },
+              "emergency_contact_phone": { "type": "string" }
+            },
+            "required": ["patient_id"]
+          }
+        },
+        "server": {
+          "url": "https://YOUR_DEPLOYED_API_BASE_URL/vapi/tool-calls",
+          "credentialId": "REPLACE_WITH_YOUR_BEARER_TOKEN_CREDENTIAL_ID"
+        }
+      }
+    ]
+  },
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "rachel"
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2",
+    "language": "en-US"
+  },
+  "server": {
+    "url": "https://YOUR_DEPLOYED_API_BASE_URL/vapi/call-events",
+    "credentialId": "REPLACE_WITH_YOUR_BEARER_TOKEN_CREDENTIAL_ID"
+  },
+  "serverMessages": ["end-of-call-report"],
+  "endCallFunctionEnabled": true,
+  "endCallMessage": "Thanks so much for calling — take care!",
+  "silenceTimeoutSeconds": 20,
+  "maxDurationSeconds": 420
+}

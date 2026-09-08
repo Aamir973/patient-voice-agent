@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Patient Registry</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --paper: #F6F4EF;
+    --ink: #1F2A24;
+    --ink-soft: #5B6660;
+    --line: #D8D3C6;
+    --accent: #2F5D50;
+    --accent-soft: #E4ECE8;
+    --danger: #A3402F;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  }
+  header {
+    padding: 2.5rem 2rem 1.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 {
+    margin: 0 0 0.25rem;
+    font-size: 1.9rem;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+  header p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+    max-width: 60ch;
+  }
+  main { padding: 1.5rem 2rem 3rem; max-width: 1100px; margin: 0 auto; }
+  .toolbar {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+  }
+  .toolbar input {
+    font-family: inherit;
+    font-size: 0.95rem;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: white;
+    color: var(--ink);
+    min-width: 200px;
+  }
+  .toolbar button {
+    font-family: inherit;
+    font-size: 0.9rem;
+    padding: 0.55rem 1rem;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .toolbar button.secondary {
+    background: transparent;
+    color: var(--accent);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border: 1px solid var(--line);
+  }
+  th, td {
+    text-align: left;
+    padding: 0.65rem 0.8rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.92rem;
+    vertical-align: top;
+  }
+  th {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+  tr:last-child td { border-bottom: none; }
+  .id-cell { font-family: "Courier New", monospace; font-size: 0.78rem; color: var(--ink-soft); }
+  .empty, .loading, .error {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: var(--ink-soft);
+    border: 1px dashed var(--line);
+    border-radius: 4px;
+    background: white;
+  }
+  .error { color: var(--danger); border-color: var(--danger); }
+  .pill {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 20px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.78rem;
+  }
+  footer {
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+    padding: 1.5rem;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Patient Registry</h1>
+  <p>Live view of everyone registered through the voice intake line and the REST API.</p>
+</header>
+<main>
+  <div class="toolbar">
+    <input id="q-last-name" placeholder="Filter by last name" />
+    <input id="q-phone" placeholder="Filter by phone number" />
+    <button id="search-btn">Search</button>
+    <button id="reset-btn" class="secondary">Reset</button>
+  </div>
+  <div id="content" class="loading">Loading patients&hellip;</div>
+</main>
+<footer>Patient Registration System &middot; data refreshes on search</footer>
+
+<script>
+  const API_BASE = window.location.origin;
+  const contentEl = document.getElementById('content');
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('en-US');
+  }
+
+  function esc(s) {
+    return (s ?? '').toString().replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function fmtPhone(p) {
+    if (!p || p.length !== 10) return p || '—';
+    return `(${p.slice(0,3)}) ${p.slice(3,6)}-${p.slice(6)}`;
+  }
+
+  async function loadPatients(params = {}) {
+    contentEl.className = 'loading';
+    contentEl.textContent = 'Loading patients…';
+    const url = new URL(API_BASE + '/patients');
+    Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
+
+    try {
+      const res = await fetch(url);
+      const body = await res.json();
+      if (!res.ok || body.error) {
+        contentEl.className = 'error';
+        contentEl.textContent = body.error || `Request failed (${res.status})`;
+        return;
+      }
+      render(body.data || []);
+    } catch (err) {
+      contentEl.className = 'error';
+      contentEl.textContent = 'Could not reach the API. Is the server running?';
+    }
+  }
+
+  function render(patients) {
+    if (!patients.length) {
+      contentEl.className = 'empty';
+      contentEl.textContent = 'No patients match yet. Call the intake line to register one.';
+      return;
+    }
+    contentEl.className = '';
+    const rows = patients.map(p => `
+      <tr>
+        <td>${esc(p.first_name)} ${esc(p.last_name)}</td>
+        <td>${fmtDate(p.date_of_birth)}</td>
+        <td><span class="pill">${esc(p.sex)}</span></td>
+        <td>${fmtPhone(p.phone_number)}</td>
+        <td>${esc(p.city)}, ${esc(p.state)} ${esc(p.zip_code)}</td>
+        <td>${esc(p.insurance_provider) || '—'}</td>
+        <td class="id-cell">${esc(p.patient_id)}</td>
+      </tr>
+    `).join('');
+
+    contentEl.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th><th>DOB</th><th>Sex</th><th>Phone</th><th>Address</th><th>Insurance</th><th>Patient ID</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  document.getElementById('search-btn').addEventListener('click', () => {
+    loadPatients({
+      last_name: document.getElementById('q-last-name').value.trim(),
+      phone_number: document.getElementById('q-phone').value.trim(),
+    });
+  });
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    document.getElementById('q-last-name').value = '';
+    document.getElementById('q-phone').value = '';
+    loadPatients();
+  });
+
+  loadPatients();
+</script>
+</body>
+</html>
